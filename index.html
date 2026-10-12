@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KingKong – Thanh toán</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:var(--tg-theme-bg-color,#fff);--text:var(--tg-theme-text-color,#111);--hint:var(--tg-theme-hint-color,#888);
+--card:var(--tg-theme-secondary-bg-color,#f3f4f6);--accent:#f5a623;--accent2:#e8890c;--btn-text:#1a1a1a;--danger:#e5484d}
+*{box-sizing:border-box}body{margin:0;font:15px/1.4 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);padding:12px 12px 32px}
+header{display:flex;align-items:center;gap:10px;margin:2px 2px 12px}
+.logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:22px}
+h1{font-size:19px;margin:0}header small{color:var(--hint);display:block;font-size:12px}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
+h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+label{display:block;font-size:12px;color:var(--hint);margin:8px 0 4px}
+input,select{width:100%;padding:11px 12px;border:1px solid rgba(128,128,128,.3);border-radius:10px;font-size:16px;background:var(--bg);color:var(--text)}
+button{border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;background:var(--accent);color:var(--btn-text)}
+button.sec{background:rgba(128,128,128,.15);color:var(--text)}button.link{background:none;color:var(--accent2);padding:4px 6px;font-weight:600}
+button:disabled{opacity:.5}.row{display:flex;gap:8px}.row>*{flex:1}
+.chips{display:flex;gap:8px;margin-top:8px}.chips button{flex:1;padding:9px 0;background:rgba(245,166,35,.15);color:var(--text);font-weight:500}
+.acc{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--bg);margin-bottom:8px;border:2px solid transparent}
+.acc.sel{border-color:var(--accent)}.acc .info{flex:1;min-width:0}.acc b{display:block}.acc span{color:var(--hint);font-size:13px}
+.star{color:var(--accent2);font-size:12px;font-weight:700}
+#qrbox{text-align:center}#qrimg{width:100%;max-width:300px;border-radius:12px;background:#fff;padding:6px;margin:6px auto;display:block}
+.cap{font-size:13px;color:var(--hint);white-space:pre-line;text-align:left}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;max-width:90%}
+.toast.show{opacity:1}.hidden{display:none!important}.muted{color:var(--hint);font-size:13px}
+.banklist{max-height:220px;overflow:auto;border-radius:10px;background:var(--bg);margin-top:6px;border:1px solid rgba(128,128,128,.2)}
+.banklist div{padding:9px 12px;border-bottom:1px solid rgba(128,128,128,.12)}.banklist div:active{background:rgba(245,166,35,.15)}
+footer{color:var(--hint);font-size:11px;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<header><div class="logo">🦍</div><div><h1>KingKong</h1><small>Tạo mã QR nhận tiền chuyển khoản</small></div></header>
+
+<div id="denied" class="card hidden"><b id="deniedMsg"></b></div>
+
+<div id="main" class="hidden">
+  <div class="card">
+    <h2>💰 Tạo mã QR <span id="curAcc" class="muted"></span></h2>
+    <label>Số tiền (đ)</label>
+    <input id="amount" inputmode="numeric" placeholder="VD: 150.000 (để trống = người chuyển tự nhập)">
+    <div class="chips"><button data-a="100000">100k</button><button data-a="200000">200k</button><button data-a="500000">500k</button></div>
+    <label>Nội dung chuyển khoản</label>
+    <input id="content" maxlength="50" placeholder="VD: Thanh toan don 123">
+    <div id="qrbox" class="hidden">
+      <img id="qrimg" alt="Mã QR">
+      <div id="qrcap" class="cap"></div>
+      <div class="row" style="margin-top:10px"><button class="sec" id="dlBtn">⬇️ Tải về</button><button class="sec" id="shareBtn">📤 Chia sẻ</button></div>
+      <label>Gửi vào</label>
+      <div class="row"><select id="target"></select><button id="sendBtn" style="flex:.6">Gửi</button></div>
+    </div>
+    <p id="qrMsg" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <h2>💳 Tài khoản nhận tiền <button class="link hidden" id="addBtn">➕ Thêm</button></h2>
+    <div id="accs"></div>
+  </div>
+
+  <div class="card hidden" id="editCard">
+    <h2 id="editTitle">✏️ Sửa tài khoản</h2>
+    <label>Ngân hàng</label>
+    <input id="bankSearch" placeholder="Tìm: VCB, MB, Techcombank…" autocomplete="off">
+    <div id="bankList" class="banklist hidden"></div>
+    <label>Số tài khoản</label><input id="stk" inputmode="numeric" maxlength="19">
+    <label>Tên chủ tài khoản</label><input id="holder" maxlength="60" style="text-transform:uppercase">
+    <label style="display:flex;align-items:center;gap:8px;color:var(--text);font-size:14px"><input type="checkbox" id="mkDef" style="width:auto"> Đặt làm mặc định</label>
+    <div class="row" style="margin-top:12px"><button class="sec" id="cancelEdit">Hủy</button><button id="saveBtn">💾 Lưu</button></div>
+    <button class="link hidden" id="delBtn" style="color:var(--danger);margin-top:8px">🗑 Xóa tài khoản này</button>
+  </div>
+</div>
+<footer>KingKong · Mã QR theo chuẩn VietQR/NAPAS 247 · Không phải ứng dụng của ngân hàng</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram && Telegram.WebApp; if (tg) { tg.ready(); tg.expand(); }
+const initData = tg ? tg.initData : "";
+// API base: same origin by default; a static launcher host passes ?api=https://<tunnel> (must be https)
+const API = (()=>{const a=new URLSearchParams(location.search).get("api");return a&&/^https:\/\/[a-z0-9.-]+$/i.test(a)?a:""})();
+const $ = id => document.getElementById(id);
+let S = {owner:false, accounts:[], banks:[], sel:null, edit:null, bank:null, lastQR:null};
+const fmt = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2500)}
+async function api(path, data){
+  const r = await fetch(API+path,{method:"POST",headers:{"Content-Type":"application/json","X-Init-Data":initData,"ngrok-skip-browser-warning":"1"},body:JSON.stringify(data||{})});
+  let j={}; try{j=await r.json()}catch(e){}
+  if(!r.ok) throw new Error(j.error||("Lỗi "+r.status)); return j;
+}
+function haptic(t){try{tg.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function renderAccs(){
+  const box=$("accs"); box.innerHTML="";
+  if(!S.accounts.length){box.innerHTML='<p class="muted">Chưa có tài khoản. '+(S.owner?'Bấm ➕ Thêm.':'Chủ shop chưa thêm tài khoản.')+'</p>';}
+  if(!S.accounts.find(a=>a.id===S.sel)) S.sel=(S.accounts.find(a=>a.is_default)||S.accounts[0]||{}).id||null;
+  for(const a of S.accounts){
+    const d=document.createElement("div"); d.className="acc"+(a.id===S.sel?" sel":"");
+    d.innerHTML=`<div class="info"><b></b><span></span></div>`;
+    d.querySelector("b").textContent=`${a.bank_name} · ${a.stk}`;
+    d.querySelector("span").innerHTML=""; d.querySelector("span").append(a.holder, a.is_default?Object.assign(document.createElement("span"),{className:"star",textContent:"  ⭐ Mặc định"}):"");
+    d.onclick=()=>{S.sel=a.id;renderAccs();genQR()};
+    if(S.owner){
+      if(!a.is_default){const b=document.createElement("button");b.className="link";b.textContent="⭐";b.title="Đặt mặc định";
+        b.onclick=async e=>{e.stopPropagation();try{S.accounts=(await api("/api/accounts/default",{id:a.id})).accounts;toast("Đã đặt mặc định");renderAccs()}catch(x){toast(x.message)}};d.append(b)}
+      const e=document.createElement("button");e.className="link";e.textContent="✏️";e.onclick=ev=>{ev.stopPropagation();openEdit(a)};d.append(e);
+    }
+    box.append(d);
+  }
+  const cur=S.accounts.find(a=>a.id===S.sel); $("curAcc").textContent=cur?cur.bank_name:"";
+}
+function openEdit(a){
+  S.edit=a||{}; $("editCard").classList.remove("hidden");
+  $("editTitle").textContent=a?"✏️ Sửa tài khoản":"➕ Thêm tài khoản";
+  S.bank=a?S.banks.find(b=>b.code===a.bank_code)||null:null;
+  $("bankSearch").value=S.bank?`${S.bank.shortName} – ${S.bank.name}`:""; $("stk").value=a?a.stk:""; $("holder").value=a?a.holder:"";
+  $("mkDef").checked=a?a.is_default:!S.accounts.length; $("delBtn").classList.toggle("hidden",!a);
+  $("editCard").scrollIntoView({behavior:"smooth"});
+}
+function norm(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/gi,"d").toLowerCase().replace(/[^a-z0-9]/g,"")}
+function showBanks(){
+  const q=norm($("bankSearch").value), L=$("bankList"); L.innerHTML="";
+  const list=S.banks.filter(b=>!q||norm(b.code+b.shortName+b.name).includes(q)).slice(0,40);
+  for(const b of list){const d=document.createElement("div");d.textContent=`${b.shortName} – ${b.name}`;
+    d.onclick=()=>{S.bank=b;$("bankSearch").value=`${b.shortName} – ${b.name}`;L.classList.add("hidden")};L.append(d)}
+  L.classList.toggle("hidden",!list.length);
+}
+$("bankSearch").addEventListener("input",()=>{S.bank=null;showBanks()});
+$("bankSearch").addEventListener("focus",showBanks);
+$("cancelEdit").onclick=()=>{$("editCard").classList.add("hidden");$("bankList").classList.add("hidden")};
+$("addBtn").onclick=()=>openEdit(null);
+$("saveBtn").onclick=async()=>{
+  if(!S.bank) return toast("Chọn ngân hàng trong danh sách");
+  $("saveBtn").disabled=true;
+  try{const r=await api("/api/accounts/save",{id:S.edit.id,bank_code:S.bank.code,stk:$("stk").value.trim(),holder:$("holder").value.trim(),make_default:$("mkDef").checked});
+    S.accounts=r.accounts;S.sel=r.id;$("editCard").classList.add("hidden");haptic("success");toast("Đã lưu");renderAccs();genQR()}
+  catch(e){haptic("error");toast(e.message)} finally{$("saveBtn").disabled=false}
+};
+$("delBtn").onclick=()=>{
+  const go=async ok=>{if(!ok)return;try{S.accounts=(await api("/api/accounts/delete",{id:S.edit.id})).accounts;$("editCard").classList.add("hidden");toast("Đã xóa");renderAccs();genQR()}catch(e){toast(e.message)}};
+  tg&&tg.showConfirm?tg.showConfirm("Xóa tài khoản này?",go):go(confirm("Xóa tài khoản này?"));
+};
+document.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>{$("amount").value=fmt(b.dataset.a);genQR()});
+$("amount").addEventListener("input",e=>{const d=e.target.value.replace(/\D/g,"").slice(0,12);e.target.value=d?fmt(d):"";debounced()});
+$("content").addEventListener("input",debounced);
+let tmr; function debounced(){clearTimeout(tmr);tmr=setTimeout(genQR,450)}
+let seq=0;
+async function genQR(){
+  if(!S.sel){$("qrbox").classList.add("hidden");$("qrMsg").textContent=S.accounts.length?"":"Cần có tài khoản nhận tiền.";return}
+  const my=++seq;
+  try{const r=await api("/api/qr",{account_id:S.sel,amount:$("amount").value.replace(/\D/g,""),content:$("content").value});
+    if(my!==seq)return; S.lastQR=r; $("qrimg").src="data:image/png;base64,"+r.png; $("qrcap").textContent=r.caption.split("\n\n")[0];
+    $("qrbox").classList.remove("hidden"); $("qrMsg").textContent="";
+  }catch(e){if(my===seq){$("qrMsg").textContent=e.message;$("qrbox").classList.add("hidden")}}
+}
+function pngBlob(){const b=atob(S.lastQR.png),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return new Blob([a],{type:"image/png"})}
+$("dlBtn").onclick=()=>{
+  if(!S.lastQR)return; const url=(API||location.origin)+S.lastQR.download;
+  if(tg&&tg.downloadFile){try{tg.downloadFile({url,file_name:"kingkong_qr.png"});return}catch(e){}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(pngBlob());a.download="kingkong_qr.png";a.click();
+};
+$("shareBtn").onclick=async()=>{
+  if(!S.lastQR)return; const f=new File([pngBlob()],"kingkong_qr.png",{type:"image/png"});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:S.lastQR.caption});return}catch(e){return}}
+  toast("Thiết bị không hỗ trợ chia sẻ trực tiếp — dùng “Gửi” hoặc “Tải về”.");
+};
+$("sendBtn").onclick=async()=>{
+  if(!S.lastQR)return; $("sendBtn").disabled=true;
+  try{await api("/api/send",{account_id:S.sel,amount:$("amount").value.replace(/\D/g,""),content:$("content").value,target:$("target").value});haptic("success");toast("Đã gửi vào chat ✅")}
+  catch(e){haptic("error");toast(e.message)} finally{$("sendBtn").disabled=false}
+};
+(async()=>{
+  if(!initData){$("denied").classList.remove("hidden");$("deniedMsg").textContent="Hãy mở ứng dụng này từ bot Telegram (nút “Mở ứng dụng”).";return}
+  try{
+    const me=await api("/api/me"); S.owner=me.owner; S.accounts=me.accounts;
+    const t=$("target"); t.innerHTML=""; t.append(new Option("Chat riêng với bot",""));
+    for(const g of me.targets) t.append(new Option("Nhóm: "+g.title,g.id));
+    $("main").classList.remove("hidden"); $("addBtn").classList.toggle("hidden",!S.owner);
+    renderAccs(); genQR();
+    if(S.owner) S.banks=await api("/api/banks"); else S.banks=[];
+  }catch(e){$("denied").classList.remove("hidden");$("deniedMsg").textContent=e.message}
+})();
+</script>
+</body>
+</html>
